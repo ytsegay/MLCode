@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="ProjectModuleManager">
+    <modules>
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/gradientdescent.iml" filepath="$PROJECT_DIR$/.idea/modules/gradientdescent.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/gradientdescent-build.iml" filepath="$PROJECT_DIR$/.idea/modules/gradientdescent-build.iml" />
+    </modules>
+  </component>
+</project>
+
