@@ -1,7 +1,14 @@
 /**
  * Created by ytsegay on 9/19/14.
  * Gradient descent with batch and online implementation
+ *
  */
+
+// TODO: Add support for logistic regression
+// TODO: modularize cost function
+// TODO: wrap the features in a class and the target in perhaps another class
+// TODO: add support for categorical variables
+// TODO: generatelize the prediction function
 object GradientDescent {
 
   def predict(x:Array[Double], theta:Array[Double]) : Double = {
