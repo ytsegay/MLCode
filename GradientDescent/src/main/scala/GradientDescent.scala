@@ -42,7 +42,7 @@ object GradientDescent {
   }
 
 
-  def batchGradientDescentRegression(x:Array[Array[Double]], y:Array[Double], verbose:Boolean, learnRate:Double, iterationsCount:Int) = {
+  def batchGradientDescentRegression(x:Array[Array[Double]], y:Array[Double], verbose:Boolean, learnRate:Double, iterationsCount:Int, lambda:Double) = {
     val instancesCount = x.length
 
     var theta:Array[Double] = new Array[Double](x(0).length)
@@ -58,7 +58,7 @@ object GradientDescent {
         // get derivative of J theta for features
         var DJSum = 0.0
         for (k <- 0 until instancesCount) DJSum += ((predict(x(k), theta) - y(k)) * x(k)(j))
-        newTheta(j) = theta(j) - ((learnRate*DJSum)/instancesCount)
+        newTheta(j) = theta(j) - ((learnRate*DJSum)/instancesCount) + (lambda*theta(j))/instancesCount
       }
 
       theta = newTheta
@@ -103,13 +103,14 @@ object GradientDescent {
 
   def main(args:Array[String]): Unit = {
 
-    val featuresFile = "/Users/ytsegay/git/Scala/GradientDescent/src/main/resources/ex2x.dat"
-    val targetFile = "/Users/ytsegay/git/Scala/GradientDescent/src/main/resources/ex2y.dat"
-    val learnRate = 0.07
-    val iterationsCount = 1500
+    val featuresFile = "/Users/ytsegay/git/Scala/GradientDescent/src/main/resources/ex3x.dat"
+    val targetFile = "/Users/ytsegay/git/Scala/GradientDescent/src/main/resources/ex3y.dat"
+    val learnRate = 1.0
+    val iterationsCount = 1000
     val verbose = true
-    val shouldStandardise = false
-    val mode = "online" // can also be online
+    val shouldStandardise = true
+    val mode = "batch" // can also be online
+    val lambda = 0.1    // regularization parameter
 
 
     val trainLines = loadFile(featuresFile)
@@ -135,7 +136,7 @@ object GradientDescent {
         println("\n\n")
       }
 
-      val theta = batchGradientDescentRegression(X, Y, verbose, learnRate, iterationsCount)
+      val theta = batchGradientDescentRegression(X, Y, verbose, learnRate, iterationsCount, lambda)
       if (verbose){
         println("\n\nMode: " + mode)
         printTheta(theta)
@@ -145,7 +146,7 @@ object GradientDescent {
       if (verbose)
         println("\n\n")
 
-      val theta = batchGradientDescentRegression(X, Y, verbose, learnRate, iterationsCount)
+      val theta = stochasticGradientDescent(X, Y, verbose, learnRate)
       if (verbose){
         println("\n\nMode: " + mode)
         printTheta(theta)
