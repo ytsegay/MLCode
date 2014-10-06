@@ -11,12 +11,11 @@ object TestSmoSVM {
 		val xs = for(i <- 0 until f.length) yield Array(f(i)(0).toDouble, f(i)(1).toDouble)
 		val ys = for(i <- 0 until f.length) yield (f(i)(2).toDouble)
 
-		val iters = 1000
+		val iters = 40
 		val tol = 0.0001
-		val C = 200
+		val C = 19.0
 		val kernel = "rbf"
 		val gamma = 1.3
-
 
 		val clfParam = new SVMParam(xs.toArray, ys.toArray, iters, tol, C, kernel, gamma)
 
@@ -39,5 +38,4 @@ object TestSmoSVM {
 		}
 		println("Training accuracy: " + (countMatches.toFloat/clfParam.xRowCount))
 	}
-
 }

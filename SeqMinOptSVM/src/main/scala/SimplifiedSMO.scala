@@ -8,9 +8,11 @@ import java.util
  * The algorithm over several iterations computes parameters associated with each training sample. Each training
  * sample is optimized and only support vector instances will have theta values at the end of the optimization
  * ... TODO: finish this off.
+ *
+ * http://common-lisp.net/p/cl-machine-learning/git/cl-svm/research/platt-smo-book.pdf
+ *
  */
 class SimplifiedSMO {
-
 
 	/* initialize kernel distances depending on the type of kernel we are using.
 	 * for optimization reasons this is done once
@@ -22,7 +24,7 @@ class SimplifiedSMO {
 			for (j <- 0 until p.xRowCount) p.kernelDistances(i)(j) = kernelDistance(p.x(i), p.x(j), p.kernel, p.gamma)
 		}
 
-		// reset
+		// initialize alphas
 		for (i <- 0 until p.xRowCount) p.alphas(i) = 0.0
 	}
 
@@ -101,6 +103,18 @@ class SimplifiedSMO {
 		return rndIndex
 	}
 
+	def runOuterLoopOverEntireSet(p:SVMParam): Int ={
+		var howManyAlphasChanged = 0
+		// same as training set for-loop
+		return howManyAlphasChanged
+	}
+
+	def runOuterLoopOverNonBoundedSet(p:SVMParam) :Int ={
+		var howManyAlphasChanged = 0
+		// find all errors whose value is greater than zero
+		return howManyAlphasChanged
+	}
+
 	def train(p:SVMParam) = {
 
 		initializeKernels(p)
@@ -158,6 +172,7 @@ class SimplifiedSMO {
 								}
 
 								alphasChanged += 1
+								//println("iteration: " + iter + " diff: " + Math.abs(newAlphaJ - oldAlphaJ))
 							}
 						}
 					}
