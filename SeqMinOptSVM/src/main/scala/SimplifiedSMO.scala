@@ -26,6 +26,9 @@ class SimplifiedSMO {
 
 		// initialize alphas
 		for (i <- 0 until p.xRowCount) p.alphas(i) = 0.0
+
+		// initialize error cache
+		for (i <- 0 until p.xRowCount) p.errorCache(i) = 0.0
 	}
 
 	private def kernelDistance(x1:Array[Double], x2:Array[Double], kernel:String, gamma:Double) :Double = {
@@ -103,16 +106,127 @@ class SimplifiedSMO {
 		return rndIndex
 	}
 
-	def runOuterLoopOverEntireSet(p:SVMParam): Int ={
-		var howManyAlphasChanged = 0
-		// same as training set for-loop
-		return howManyAlphasChanged
-	}
 
 	def runOuterLoopOverNonBoundedSet(p:SVMParam) :Int ={
-		var howManyAlphasChanged = 0
-		// find all errors whose value is greater than zero
-		return howManyAlphasChanged
+		var alphasChanged = 0
+
+		// get non bound alphas
+		val indexOfNonBoundAlphas = for {i <- 0 until p.xRowCount if (p.alphas(i) > 0 && p.alphas(i) < p.C)} yield i
+
+		if (indexOfNonBoundAlphas.length == 0){
+			return runOuterLoopOverEntireSet(p)
+		}
+		else {
+			for (i <- indexOfNonBoundAlphas) {
+				// compute errorI
+				val fxI = fx(p, i)
+				val errI = fxI - p.y(i)
+
+				if ((p.y(i) * errI < -p.tol && p.alphas(i) < p.C) || (p.y(i) * errI > p.tol && p.alphas(i) > 0)) {
+
+					// Now pick a J that will maximize the errorDelta
+					val indexOfNonZeroErrorCache = for {i <- 0 until p.xRowCount if (p.errorCache(i) != 0.0)} yield i
+					var maxJErr = -1.0
+					var maxJ = -1
+					for (j <- 0 until indexOfNonBoundAlphas.length) {
+						val fxJ = fx(p, j)
+						val errJ = fxJ - p.y(j)
+
+						if (Math.abs(errJ - errI) > maxJErr) {
+							maxJErr = Math.abs(errJ - errI)
+							maxJ = j
+						}
+					}
+					alphasChanged += runInnerLoop(p, i, maxJ, errI, maxJErr)
+				}
+			}
+		}
+
+		return alphasChanged
+	}
+
+
+	def runOuterLoopOverEntireSet(p:SVMParam): Int ={
+		var alphasChanged = 0
+		for (i <- 0 until p.xRowCount) {
+
+			val fxI = fx(p, i)
+			val errI = fxI - p.y(i)
+
+			if ((p.y(i) * errI < -p.tol && p.alphas(i) < p.C) || (p.y(i) * errI > p.tol && p.alphas(i) > 0)) {
+
+				// randomly pick another instance j where j != i
+				val j = randIndex(p.xRowCount, i)
+				val fxJ = fx(p, j)
+				val errJ = fxJ - p.y(j)
+
+				alphasChanged += runInnerLoop(p, i, j, errI, errJ)
+			}
+		}
+		return alphasChanged
+	}
+
+	private def runInnerLoop(p:SVMParam, i:Int, j:Int, errI:Double, errJ:Double): Int = {
+		// save old alpha j and alpha i
+		val oldAlphaJ = p.alphas(j)
+		val oldAlphaI = p.alphas(i)
+
+		// compute L and H
+		val (lb, hb) = computeBoundries(p, i, j)
+		if (Math.abs(lb - hb) > 0.01) {
+
+			// compute N
+			val N = computeN(p, i, j)
+			if (N < 0.0) {
+
+				// compute and clip alphaJ
+				var newAlphaJ = computeAlphaJ(p.alphas(j), p.y(j), errI - errJ, N)
+				newAlphaJ = clipBoundries(newAlphaJ, lb, hb)
+				p.alphas(j) = newAlphaJ
+
+				// recompute the error and store in error cache for J
+				val fxTemp = fx(p, j)
+				p.errorCache(j) = fxTemp - p.y(j)
+
+				if (Math.abs(newAlphaJ - oldAlphaJ) >= 1e-5) {
+
+					// compute alphaI
+					val newAlphaI = computeAlphaI(p.alphas(i), p.y(i), p.y(j), oldAlphaJ, newAlphaJ)
+					p.alphas(i) = newAlphaI
+
+					// recompute the error and store in error cache for I
+					val fxTemp = fx(p, i)
+					p.errorCache(i) = fxTemp - p.y(i)
+
+					// compute b1 and b2 and therefore determine b
+					val b1 = computeB(p, i, j, errI, newAlphaI, oldAlphaI, newAlphaJ, oldAlphaJ)
+					val b2 = computeB(p, i, j, errJ, newAlphaI, oldAlphaI, newAlphaJ, oldAlphaJ)
+
+					if (newAlphaI > 0 && newAlphaI < p.C) {
+						p.b = b1
+					}
+					else if (newAlphaJ > 0 && newAlphaJ < p.C) {
+						p.b = b2
+					}
+					else {
+						p.b = (b1 + b2) / 2
+					}
+
+					return 1
+				}
+			}
+		}
+		return 0
+	}
+
+	def train2(p:SVMParam)={
+		initializeKernels(p)
+		runOuterLoopOverEntireSet(p)
+		var iter = 0
+		while(runOuterLoopOverNonBoundedSet(p) > 0 && iter < p.maxIterations){
+			iter += 1
+		}
+		runOuterLoopOverEntireSet(p)
 	}
 
 	def train(p:SVMParam) = {
@@ -274,6 +388,7 @@ class SVMParam (xParam: Array[Array[Double]], yParam: Array[Double], maxIteratio
 	private val _xColCount = x(0).length
 	private val _kernel = kernelParam
 	private val _gamma = gammaParam
+	private val _errorCache = new Array[Double](_x.length)
 
 	/* getters */
 	def C = _C
@@ -292,4 +407,5 @@ class SVMParam (xParam: Array[Array[Double]], yParam: Array[Double], maxIteratio
 	def xColCount = _xColCount
 	def kernel = _kernel
 	def gamma = _gamma
+	def errorCache = _errorCache
 }
