@@ -7,63 +7,60 @@ import java.util
  * It is implemented as discussed in this paper
  * The algorithm over several iterations computes parameters associated with each training sample. Each training
  * sample is optimized and only support vector instances will have theta values at the end of the optimization
- * ... TODO: finish this off.
  *
  * http://common-lisp.net/p/cl-machine-learning/git/cl-svm/research/platt-smo-book.pdf
  * kernels: http://crsouza.blogspot.com/2010/03/kernel-functions-for-machine-learning.html
  *
+ * // TODO: isoptimized == false works really well but true doesn't
+ * // TODO: support for multiclass classification one V one or one V many
+ *
  */
 class SimplifiedSMO {
 
-	/* initialize kernel distances depending on the type of kernel we are using.
-	 * for optimization reasons this is done once
-	 */
+
+	/* initialize kernel distances, alphas and error cache */
 	private def initializeKernels(p:SVMParam) = {
 		// compute kernel distances once
 		p.kernelDistances = Array.ofDim[Double](p.xRowCount,p.xRowCount)
-		for (i <- 0 until p.xRowCount) {
-			for (j <- 0 until p.xRowCount) p.kernelDistances(i)(j) = kernelDistance(p.x(i), p.x(j), p.kernel, p.gamma)
-		}
+		for (i <- 0 until p.xRowCount) for (j <- 0 until p.xRowCount) p.kernelDistances(i)(j) = kernelDistance(p.x(i), p.x(j), p.kernel, p.sigma)
 
-		// initialize alphas
 		for (i <- 0 until p.xRowCount) p.alphas(i) = 0.0
 
-		// initialize error cache
 		for (i <- 0 until p.xRowCount) p.errorCache(i) = 0.0
 	}
 
-	private def kernelDistance(x1:Array[Double], x2:Array[Double], kernel:String, gamma:Double) :Double = {
+
+	/* implementation of similarity kernels. */
+	private def kernelDistance(x1:Array[Double], x2:Array[Double], kernel:String, sigma:Double) :Double = {
 		if (kernel == "linear") {
 			return MatrixAlgebraUtil.dotProduct(x1, x2)
 		}
 		else if(kernel == "rbf"){
+			// compute euclidean distance sans sqrt of sum as we will take the square of the sum anyway
 			val diff = MatrixAlgebraUtil.subtract(x1, x2)
 			val product = MatrixAlgebraUtil.dotProduct(diff, diff)
-			return scala.math.exp((product*product)/(-2*gamma*gamma))
+			return scala.math.exp((product)/(-2*sigma*sigma))
 		}
 		// should not get here
 		throw new IllegalArgumentException("Kernel " + kernel + " is not supported")
 	}
 
-	// compute prediction for an instance
-	private def fx(p:SVMParam, current: Int): Double = {
 
-		val xxP = MatrixAlgebraUtil.dotProduct(p.x, p.x(current))
+	/* compute prediction for an instance's feature set */
+	private def fx(p:SVMParam, current: Int): Double = {
 		val alphasAndYs = MatrixAlgebraUtil.multiply(p.y, p.alphas)
-		return MatrixAlgebraUtil.dotProduct(alphasAndYs, xxP) + p.b
+		return MatrixAlgebraUtil.dotProduct(alphasAndYs, p.kernelDistances(current)) + p.b
 	}
 
+	/* */
 	private def clipBoundries(alpha: Double, min: Double, max: Double): Double = {
-		if (alpha < min) {
+		if (alpha < min)
 			return min
-		}
-
-		if (alpha > max) {
+		else if (alpha > max)
 			return max
-		}
-
 		return alpha
 	}
+
 
 	private def computeBoundries(p:SVMParam, i:Int, j:Int) :(Double, Double) = {
 		var HB = 0.0
@@ -80,38 +77,42 @@ class SimplifiedSMO {
 		return (LB, HB)
 	}
 
+
 	private def computeN(p:SVMParam, i:Int, j:Int): Double = {
 		return 2 * p.kernelDistances(i)(j) - p.kernelDistances(i)(i) - p.kernelDistances(j)(j)
 	}
+
 
 	private def computeAlphaJ(alphaJ: Double, yJ: Double, errorDelta: Double, n: Double): Double = {
 		return alphaJ - ((yJ * errorDelta) / n)
 	}
 
+
 	private def computeAlphaI(alphaI: Double, yi: Double, yj: Double, alphaJOld: Double, alphaJ: Double): Double = {
 		return alphaI + (yi * yj * (alphaJOld - alphaJ))
 	}
 
+
 	private def computeB(p:SVMParam, i:Int, j:Int, err: Double, alphaI: Double, oldAlphaI: Double, alphaJ: Double, oldAlphaJ: Double): Double = {
 		return p.b - err - (p.y(i) * (alphaI - oldAlphaI) * p.kernelDistances(i)(i)) - (p.y(j) * (alphaJ - oldAlphaJ) * p.kernelDistances(j)(j))
 	}
+
 
 	private def randIndex(max: Int, current: Int): Int = {
 		val rnd = new scala.util.Random
 		var rndIndex = -1
 		do {
 			rndIndex = rnd.nextInt(max)
-		}
-		while (rndIndex == current)
+		}while (rndIndex == current)
 
 		return rndIndex
 	}
 
-
+	/* TODO: needs love. Optimized version of SMO */
 	private def runOuterLoopOverNonBoundedSet(p:SVMParam) :Int ={
 		var alphasChanged = 0
 
-		// get non bound alphas
+		// get non-bound alphas
 		val indexOfNonBoundAlphas = for {i <- 0 until p.xRowCount if (p.alphas(i) > 0 && p.alphas(i) < p.C)} yield i
 
 		for (i <- indexOfNonBoundAlphas) {
@@ -126,7 +127,7 @@ class SimplifiedSMO {
 				var maxJErr = -1.0
 				var maxJ = -1
 				if (indexOfNonZeroErrorCache.length > 0) {
-					for (j <- 0 until indexOfNonBoundAlphas.length) {
+					for (j <- 0 until indexOfNonZeroErrorCache.length) {
 						val errJ = fx(p, j) - p.y(j)
 
 						if (Math.abs(errJ - errI) > maxJErr) {
@@ -147,6 +148,7 @@ class SimplifiedSMO {
 	}
 
 
+	/* runs the outer loop of SMO, shared by both optimzed and unoptimized versions */
 	private def runOuterLoopOverEntireSet(p:SVMParam): Int ={
 		var alphasChanged = 0
 		for (i <- 0 until p.xRowCount) {
@@ -166,6 +168,8 @@ class SimplifiedSMO {
 		return alphasChanged
 	}
 
+
+	/* runs the internal loop logic used by optimized and none optimzed versions of smo */
 	private def runInnerLoop(p:SVMParam, i:Int, j:Int, errI:Double, errJ:Double): Int = {
 		// save old alpha j and alpha i
 		val oldAlphaJ = p.alphas(j)
@@ -217,18 +221,18 @@ class SimplifiedSMO {
 		return 0
 	}
 
-	def train(p:SVMParam, isOptimized:Boolean=true)={
+	/* public interface to train */
+	def train(p:SVMParam, isOptimized:Boolean)={
 		initializeKernels(p)
 		var iter = 0
 
 		if (isOptimized) {
-			// this is an implementation of the optimizations as described in section
+			// this is an implementation of the optimizations as described in section TODO:
 			runOuterLoopOverEntireSet(p)
 
 			while (runOuterLoopOverNonBoundedSet(p) > 0 && iter < p.maxIterations) {
 				iter += 1
 			}
-			println("maxIter: " + iter)
 			runOuterLoopOverEntireSet(p)
 		}
 		else{
@@ -253,7 +257,9 @@ class SimplifiedSMO {
 		}
 	}
 
-
+	/* public interface to do classification. You will need an SVMParam that has been trained successfully and a
+	 * feature-set array of doubles of the same length as the training set and it outputs a -1.0 or a 1.0 prediction
+	 */
 	def classify(p:SVMParam, x:Array[Double]):Double = {
 
 		val xTrans = new Array[Double](p.xRowCount)
@@ -261,7 +267,7 @@ class SimplifiedSMO {
 
 		for(i <- 0 until p.supportVectIndices.size()){
 			val index = p.supportVectIndices.get(i)
-			xTrans(index) = kernelDistance(p.x(index), x, p.kernel, p.gamma)
+			xTrans(index) = kernelDistance(p.x(index), x, p.kernel, p.sigma)
 		}
 		val p1 = MatrixAlgebraUtil.multiply(p.alphas, p.y)
 		val predictValue = MatrixAlgebraUtil.dotProduct(xTrans, p1) + p.b
@@ -273,84 +279,4 @@ class SimplifiedSMO {
 		}
 		throw new Exception("Prediction with zero. Shouldn't be here")
 	}
-}
-
-
-
-/* a class that performs elementary matrix algebra. Simulates dot product and multiplication of matrices */
-object MatrixAlgebraUtil {
-	/* 1D array dot product and returns a single value*/
-	def dotProduct(v1: Array[Double], v2: Array[Double]): Double = {
-		assert(v1.length == v2.length)
-
-		var sum = 0.0
-		for (i <- 0 until v1.length) {
-			sum += v1(i) * v2(i)
-		}
-		return sum
-	}
-
-	/*
-	 * dot product between 1D array and a 2D array and returns an array which is the dot product
-	 * between the the 1D array and each of the arrays in the 2D array
-	 */
-	def dotProduct(v1: Array[Array[Double]], v2: Array[Double]): Array[Double] = {
-		assert(v1.length > 0 && v1(0).length == v2.length)
-		val mtx = for (i <- 0 until v1.length) yield dotProduct(v1(i), v2)
-
-		return mtx.toArray
-	}
-
-	/* multiplication of 1D arrays. */
-	def multiply(v1: Array[Double], v2: Array[Double]): Array[Double] = {
-		assert(v1.length == v2.length)
-		val arr = for (i <- 0 until v1.length) yield v1(i) * v2(i)
-		return arr.toArray
-	}
-
-	/* subtraction of 1D arrays. */
-	def subtract(v1: Array[Double], v2: Array[Double]): Array[Double] = {
-		assert(v1.length == v2.length)
-		val arr = for (i <- 0 until v1.length) yield v1(i) - v2(i)
-		return arr.toArray
-	}
-}
-
-/* to be used to maintain model params */
-class SVMParam (xParam: Array[Array[Double]], yParam: Array[Double], maxIterationsParam: Double, tolParam: Double, cParam: Double, kernelParam:String, gammaParam:Double) {
-
-	/* private members */
-	private val _x = xParam
-	private val _y = yParam
-	private val _maxIterations = maxIterationsParam
-	private val _tol = tolParam
-	private val _C = cParam
-	private var _kernelDistances = new Array[Array[Double]](0)
-	private val _supportVectIndex = new util.ArrayList[Int]()
-	private val _alphas = new Array[Double](_x.length)
-	var _b = 0.0
-	private val _xRowCount = x.length
-	private val _xColCount = x(0).length
-	private val _kernel = kernelParam
-	private val _gamma = gammaParam
-	private val _errorCache = new Array[Double](_x.length)
-
-	/* getters */
-	def C = _C
-	def x = _x
-	def y = _y
-	def maxIterations = _maxIterations
-	def tol = _tol
-	def kernelDistances = _kernelDistances
-	def supportVectIndices = _supportVectIndex
-	def alphas = _alphas
-	def b = _b
-	def b_=(_b:Double) = this._b = _b
-
-	def kernelDistances_=(_kernelDistances:Array[Array[Double]]) = this._kernelDistances = _kernelDistances
-	def xRowCount = _xRowCount
-	def xColCount = _xColCount
-	def kernel = _kernel
-	def gamma = _gamma
-	def errorCache = _errorCache
 }
