@@ -7,8 +7,14 @@ object TestSmoSVM {
 	private def loadFile(fileName:String): (Array[Array[Double]], Array[Double]) = {
 
 		val f = scala.io.Source.fromFile(fileName).getLines().map(_.trim.split("\t")).toList
-		val xs = for(i <- 0 until f.length) yield Array(f(i)(0).toDouble, f(i)(1).toDouble)
-		val ys = for(i <- 0 until f.length) yield (f(i)(2).toDouble)
+		val xs = for(i <- 0 until f.length) yield {
+			val row = new Array[Double](f(i).length-1)
+			for(j<- 0 until f(i).length-1) {
+				row(j) = f(i)(j).toDouble
+			}
+			row
+		}
+		val ys = for(i <- 0 until f.length) yield (f(i)(f(i).length-1).toDouble)
 
 		return (xs.toArray,ys.toArray)
 	}
@@ -18,13 +24,13 @@ object TestSmoSVM {
 		val iters = 10000
 		val tol = 0.0001
 		val C = 200
-		val kernel = "rbf" //can also use rbf for now
-		val sigma = 1.3
+		val kernel = "linear" //can also use rbf for now
+		val sigma = 0.6
 
-		val (xs, ys) = loadFile("S:\\git\\MLCode\\SeqMinOptSVM\\src\\main\\resources\\testSetRBF.txt")
+		val (xs, ys) = loadFile("/Users/ytsegay/git/MLCode/SeqMinOptSVM/src/main/resources/uci2.txt")
 		val clfParam = new SVMParam(xs, ys, iters, tol, C, kernel, sigma)
 		val clf = new SimplifiedSMO
-		clf.train(clfParam)
+		clf.train(clfParam, isOptimized=false)
 
 		println("Support vectors: ")
 		var counter = 0
@@ -44,13 +50,13 @@ object TestSmoSVM {
 		}
 		println("Train error rate: " + (countMismatches.toDouble/clfParam.xRowCount))
 
-		countMismatches = 0
-		val (txs, tys) = loadFile("S:\\git\\MLCode\\SeqMinOptSVM\\src\\main\\resources\\testSetRBF2.txt")
-		for(i <- 0 until txs.length){
-			val pred = clf.classify(clfParam, txs(i))
-			if (pred != tys(i))
-				countMismatches += 1
-		}
-		println("Test error rate: " + (countMismatches.toDouble/txs.length))
+//		countMismatches = 0
+//		val (txs, tys) = loadFile("S:\\git\\MLCode\\SeqMinOptSVM\\src\\main\\resources\\testSetRBF2.txt")
+//		for(i <- 0 until txs.length){
+//			val pred = clf.classify(clfParam, txs(i))
+//			if (pred != tys(i))
+//				countMismatches += 1
+//		}
+//		println("Test error rate: " + (countMismatches.toDouble/txs.length))
 	}
 }
