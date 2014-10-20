@@ -17,13 +17,13 @@ import scala.util.Try
 // TODO: pass config and files are arguments/config file
 // TODO: code should be split into helpers, main batch+online code and driver
 // TODO: test one-hot-encode
-// TODO: all 0 until code should be replaced with indices
+// TODO: add 300 test points and or something with categorical features
 object GradientDescent {
 
 
   private def predictLinear(x:Array[Double], theta:Array[Double]): Double = {
     var predict:Double = 0.0
-    for (i <- 0 until x.size){
+    for (i <- x.indices){
       predict += theta(i)*x(i)
     }
     predict
@@ -31,7 +31,7 @@ object GradientDescent {
 
   private def predictLogit(x:Array[Double], theta:Array[Double]): Double = {
     var predict: Double = 0.0
-    for (i <- 0 until x.size) {
+    for (i <- x.indices) {
       predict += theta(i) * x(i)
     }
 
@@ -40,13 +40,13 @@ object GradientDescent {
 
 /* RSS (residual sq sum) */
 private def leastSqCost(yHat: Array[Double], actualY: Array[Double]): Double = {
-  val leastSqError = for (k <- 0 until yHat.length) yield Math.pow(yHat(k) - actualY(k), 2)
+  val leastSqError = for (k <- yHat.indices) yield Math.pow(yHat(k) - actualY(k), 2)
   (0.5 * leastSqError.sum) / yHat.length
 }
 
 /* logistic regression cost function */
 private def logRegCost(yHat: Array[Double], actualY: Array[Double]): Double = {
-  val logErr = for (k <- 0 until yHat.length) yield (-actualY(k)*Math.log(yHat(k))) - ((1-actualY(k)*Math.log(1-yHat(k))))
+  val logErr = for (k <- yHat.indices) yield (-actualY(k)*Math.log(yHat(k))) - ((1-actualY(k)*Math.log(1-yHat(k))))
   logErr.sum / yHat.length
 }
 
@@ -59,7 +59,7 @@ def stochasticGradientDescent(x:Array[Array[Double]], y:Array[Double],
   var theta:Array[Double] = new Array[Double](x(0).size)
 
   // initialize thetas to zeros
-  for(i<- 0 until theta.size) theta(i) = 0
+  for(i<- theta.indices) theta(i) = 0
 
   for(t <- 0 until iterationsCount) {
     // random order is important
@@ -69,7 +69,7 @@ def stochasticGradientDescent(x:Array[Array[Double]], y:Array[Double],
       // keep track of new theta
       val newTheta = new Array[Double](theta.size)
 
-      for (j <- 0 until theta.size) {
+      for (j <- theta.indices) {
         // get derivative of J theta
         val DJ = (predict(x(i), theta) - y(i)) * x(i)(j)
         newTheta(j) = theta(j) - (learnRate * DJ)
@@ -97,14 +97,14 @@ def batchGradientDescentRegression(x:Array[Array[Double]], y:Array[Double],
 
   var theta:Array[Double] = new Array[Double](x(0).length)
   // initialize thetas to zeros
-  for(i<- 0 until theta.length) theta(i) = 0.0
+  for(i<- theta.indices) theta(i) = 0.0
 
   // repeat for iteration, last one dedicated to intercept
   for(i <- 0 until iterationsCount){
     // keep track of new theta
     val newTheta = new Array[Double](theta.length)
 
-    for(j <- 0 until theta.length){
+    for(j <- theta.indices){
       // get derivative of J theta for features
       var DJSum = 0.0
       for (k <- 0 until instancesCount) DJSum += ((predict(x(k), theta) - y(k)) * x(k)(j))
@@ -136,15 +136,15 @@ def loadFile(fileName: String) = {
  */
 def scale(x:Array[Array[Double]]) = {
 
-  for(i <- 0 until x(0).length) {
-    val col = for(j <- 0 until x.length) yield x(j)(i)
+  for(i <- x(0).indices) {
+    val col = for(j <- x.indices) yield x(j)(i)
     val mean = col.sum/x.length.toDouble
 
-    val variance = for(j <- 0 until x.length) yield (col(j) - mean)*(col(j) - mean)
+    val variance = for(j <- x.indices) yield (col(j) - mean)*(col(j) - mean)
     val stddev = Math.sqrt(variance.sum/(x.length-1))
 
     if (stddev > 0) {
-      for (j <- 0 until x.length) {
+      for (j <- x.indices) {
         x(j)(i) = (x(j)(i) - mean) / stddev
       }
     }
@@ -192,7 +192,7 @@ def oneHotEncodeNonNumericFeats(x:Array[Array[String]]): (Array[Array[Double]], 
   for (k <- x(0).indices){
     if (map.contains(k.toString)){
       // copy its values as is
-      for(j <- 0 until x.length) {
+      for(j <- x.indices) {
         newX(j)(k) = x(j)(k).toDouble
       }
     }
@@ -214,7 +214,7 @@ def oneHotEncodeNonNumericFeats(x:Array[Array[String]]): (Array[Array[Double]], 
 }
 
 def printTheta(theta:Array[Double]) = {
-  for(i <- 0 until theta.length) {
+  for(i <- theta.indices) {
     println(f"$i => ${theta(i)}%2.10f")
   }
 }
@@ -249,14 +249,14 @@ def main(args:Array[String]): Unit = {
 
     val xs = for (row <- trainLines) yield {
       val t = new Array[Double](row.length + 1)
-      for (j <- 0 until row.length) t(j) = row(j).toDouble
+      for (j <- row.indices) t(j) = row(j).toDouble
       t(row.length) = 1.0 // intercept
       t
     }
     X = xs.toArray
   }
 
-  val ys = for (i <- 0 until yLines.length) yield yLines(i)(0).toDouble
+  val ys = for (i <- yLines.indices) yield yLines(i)(0).toDouble
   val Y = ys.toArray
 
   if (shouldScale) {
